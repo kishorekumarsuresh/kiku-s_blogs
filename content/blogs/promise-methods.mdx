@@ -1,0 +1,133 @@
+---
+title: "JavaScript Promise Methods"
+date: "03 May 2026"
+readTime: "6 min read"
+category: "javascript"
+description: "A complete reference to every static and instance method on the Promise API — with concise descriptions and syntax snippets."
+---
+
+Promises represent a value that may be available now, later, or never. JavaScript provides a handful of methods — both on instances and on the `Promise` constructor itself — to work with them effectively.
+
+---
+
+## Instance Methods
+
+These methods are called on a promise instance.
+
+### `.then(onFulfilled, onRejected?)`
+
+Attaches callbacks for when the promise resolves or rejects. Always returns a new promise.
+
+```js
+promise.then(
+  (value) => console.log(value),
+  (error) => console.error(error)
+);
+```
+
+---
+
+### `.catch(onRejected)`
+
+Shorthand for `.then(undefined, onRejected)`. Handles rejections further down a chain.
+
+```js
+promise
+  .then((value) => process(value))
+  .catch((error) => console.error(error));
+```
+
+---
+
+### `.finally(onFinally)`
+
+Runs the callback regardless of whether the promise fulfilled or rejected. The original settled value passes through.
+
+```js
+promise
+  .then((value) => save(value))
+  .catch((error) => log(error))
+  .finally(() => hideSpinner());
+```
+
+---
+
+## Static Methods
+
+These methods are called directly on `Promise`.
+
+### `Promise.resolve(value)`
+
+Returns a promise that is already fulfilled with the given value.
+
+```js
+const p = Promise.resolve(42);
+p.then((v) => console.log(v)); // 42
+```
+
+---
+
+### `Promise.reject(reason)`
+
+Returns a promise that is already rejected with the given reason.
+
+```js
+const p = Promise.reject(new Error("oops"));
+p.catch((e) => console.error(e.message)); // "oops"
+```
+
+---
+
+### `Promise.all(iterable)`
+
+Waits for **all** promises to fulfill. Rejects immediately if **any** one rejects.
+
+```js
+const [a, b] = await Promise.all([fetchA(), fetchB()]);
+```
+
+---
+
+### `Promise.allSettled(iterable)`
+
+Waits for **all** promises to settle (fulfill or reject). Never short-circuits — always returns every outcome.
+
+```js
+const results = await Promise.allSettled([fetchA(), fetchB()]);
+
+results.forEach(({ status, value, reason }) => {
+  if (status === "fulfilled") use(value);
+  else log(reason);
+});
+```
+
+---
+
+### `Promise.race(iterable)`
+
+Returns the result of whichever promise settles **first** — fulfilled or rejected.
+
+```js
+const first = await Promise.race([fast(), slow()]);
+```
+
+---
+
+### `Promise.any(iterable)`
+
+Returns the first **fulfilled** value. Only rejects if **every** promise rejects (throws `AggregateError`).
+
+```js
+const result = await Promise.any([mirror1(), mirror2(), mirror3()]);
+```
+
+---
+
+## Quick Comparison
+
+| Method | Short-circuits on | Returns |
+|---|---|---|
+| `Promise.all` | First rejection | All values or first error |
+| `Promise.allSettled` | Never | All outcomes |
+| `Promise.race` | First settlement | First value or first error |
+| `Promise.any` | First fulfillment | First value or AggregateError |
