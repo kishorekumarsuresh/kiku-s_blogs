@@ -1,0 +1,308 @@
+---
+title: "Different Types of DOM"
+date: "17 May 2026"
+readTime: "7 min read"
+category: "javascript"
+description: "A deep dive into the different types of DOM — the real DOM, Virtual DOM, Shadow DOM, and Incremental DOM — how they work, when to use them, and how they compare."
+---
+
+The **Document Object Model (DOM)** is the backbone of every web page. It is the tree-shaped, in-memory representation of your HTML that browsers build so JavaScript can read and change what users see on screen.
+
+Over the years, different *flavours* of the DOM have emerged — each solving a different problem. This post breaks them all down.
+
+---
+
+## 1. The Real DOM (Browser DOM)
+
+The real DOM is the standard tree structure that browsers create when they parse an HTML document. Every element, attribute, and text node becomes an object in this tree.
+
+```html
+<div id="app">
+  <h1>Hello</h1>
+  <p>World</p>
+</div>
+```
+
+The browser turns the above markup into a tree:
+
+```
+document
+ └── html
+      ├── head
+      └── body
+           └── div#app
+                ├── h1 → "Hello"
+                └── p  → "World"
+```
+
+### How it works
+
+1. **Parsing** — The browser reads HTML and builds the DOM tree.
+2. **Styling** — CSS rules are matched to DOM nodes to produce the CSSOM.
+3. **Layout** — The browser calculates the exact position and size of every element.
+4. **Paint** — Pixels are drawn on screen.
+
+### The problem
+
+Every time you change the DOM — add a node, update text, toggle a class — the browser may have to **recalculate styles, re-layout, and repaint** parts of the page. These operations are expensive, especially for frequent, granular updates.
+
+```js
+// Each of these triggers a potential reflow + repaint
+document.getElementById("count").textContent = "1";
+document.getElementById("count").textContent = "2";
+document.getElementById("count").textContent = "3";
+```
+
+This is the core motivation behind the Virtual DOM and other alternatives.
+
+---
+
+## 2. Virtual DOM
+
+The **Virtual DOM (VDOM)** is a lightweight, in-memory JavaScript representation of the real DOM. Instead of touching the browser DOM directly, frameworks like **React** and **Vue** make changes to a virtual tree first, compute the minimal set of differences, and then apply only those changes to the real DOM.
+
+### How it works
+
+1. **Render** — Your component returns a virtual tree (plain JS objects describing DOM nodes).
+2. **Diff** — The framework compares the new virtual tree with the previous one.
+3. **Patch** — Only the actual changes are applied to the real DOM.
+
+```
+State Change
+     │
+     ▼
+ New VDOM Tree
+     │
+     ▼
+   Diffing (old VDOM vs new VDOM)
+     │
+     ▼
+ Minimal Patches → Real DOM
+```
+
+### Example — React's virtual DOM
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <p>{count}</p>
+      <button onClick={() => setCount(count + 1)}>Increment</button>
+    </div>
+  );
+}
+```
+
+When `count` changes, React creates a new VDOM tree, diffs it against the old one, and discovers that only the `<p>` text changed. It updates **just that node** in the real DOM.
+
+### Pros
+
+- Batches multiple state changes into a single DOM update.
+- Provides a declarative programming model — describe *what* the UI should look like, not *how* to update it.
+- Framework handles cross-browser inconsistencies.
+
+### Cons
+
+- The diffing step itself costs memory and CPU.
+- For very simple or static pages, the overhead is unnecessary.
+
+---
+
+## 3. Shadow DOM
+
+The Shadow DOM has nothing to do with performance or updating. It solves a completely different problem — **keeping styles and markup from crashing into each other**.
+
+### The problem it solves
+
+Imagine you build a fancy date-picker widget. It has its own CSS — custom fonts, colors, spacing. Now someone drops your widget into their page, and their global CSS (`p { margin: 0; }`) breaks your layout. Or worse, *your* CSS bleeds out and messes up *their* page.
+
+The Shadow DOM prevents this by giving your widget its own **private mini-DOM** that the rest of the page cannot touch. In fact, this is the core concept behind **Web Components** — the browser-native standard for building reusable, encapsulated custom elements. Shadow DOM is what makes Web Components truly self-contained.
+
+> **Think of it like an `<iframe>` — but lightweight.** Styles inside stay inside. Styles outside stay outside. No walls are broken.
+
+### A simple example
+
+```js
+// 1. Pick any element on the page
+const host = document.getElementById("widget");
+
+// 2. Attach a shadow root — this creates the private zone
+const shadow = host.attachShadow({ mode: "open" });
+
+// 3. Put HTML + CSS inside the shadow
+shadow.innerHTML = `
+  <style>
+    p { color: red; font-weight: bold; }
+  </style>
+  <p>I live inside the Shadow DOM</p>
+`;
+```
+
+Even if the main page has `p { color: blue; }`, the paragraph above stays **red**. The shadow boundary blocks outside styles from reaching in.
+
+### What does the tree look like?
+
+```
+<div id="widget">          ← normal element ("shadow host")
+  ┗━ #shadow-root           ← hidden private root
+       ├── <style>...</style>
+       └── <p>I live inside the Shadow DOM</p>
+```
+
+You can inspect it in DevTools, but the rest of the page's JavaScript and CSS cannot accidentally interfere with it.
+
+### Key terms (in plain English)
+
+| Term | What it means |
+|---|---|
+| **Shadow Host** | The normal element you attach the shadow to (`#widget` above). |
+| **Shadow Root** | The hidden root inside — like a mini `document` just for this widget. |
+| **Shadow Boundary** | The invisible wall. Styles and selectors from outside can't cross it. |
+| **Slot** | A "hole" in the shadow tree where the parent page can plug in its own content. |
+
+### Slots — letting outside content in
+
+Sometimes you want your widget to accept content from the outside (like a card that takes a title). Slots make that possible:
+
+```html
+<--- The page (light DOM) --->
+<my-card>
+  <span slot="title">Card Title</span>
+  <p>Body text provided by the page.</p>
+</my-card>
+```
+
+```js
+// Inside my-card's shadow root
+shadow.innerHTML = `
+  <div class="card">
+    <h2><slot name="title"></slot></h2>   <--- "title" slot --->
+    <slot></slot>                          <--- default slot --->
+  </div>
+`;
+```
+
+The browser projects the outside content into the matching slots — but the shadow styles still stay isolated.
+
+### When would you use it?
+
+- Building a **reusable widget** (date picker, video player, tooltip) that must work on any page without style conflicts.
+- Creating a **design system** or component library that different teams share.
+- Embedding your component inside a **third-party site** (like an embeddable chat widget).
+
+### Trade-offs
+
+- It's **built into the browser** — no library required.
+- Server-side rendering support is limited.
+- Sharing a global theme across shadow boundaries requires CSS custom properties (`var(--brand-color)`).
+
+---
+
+## 4. Incremental DOM
+
+If you understood the Virtual DOM, the Incremental DOM is easy — it's the **same goal** (update only what changed) but with a **different strategy**.
+
+### Virtual DOM recap (so we can compare)
+
+The Virtual DOM keeps **two copies** of the tree in memory — the old one and the new one. It compares them ("diffing"), finds the differences, and then patches the real DOM.
+
+```
+ Old VDOM        New VDOM
+    │                │
+    └──── diff ──────┘
+             │
+         changes
+             │
+             ▼
+         Real DOM
+```
+
+The downside? You need memory for that **extra copy** of the entire tree.
+
+### How Incremental DOM is different
+
+The Incremental DOM **skips the copy**. There is no second tree. Instead, it walks through the **real DOM itself**, node by node, and checks: "Does this node already match what it should be?"
+
+- **Yes** → skip it, move to the next node.
+- **No** → update it right there, in place.
+
+```
+Template says: <div><p>5</p></div>
+
+Walk the real DOM:
+  <div>  ✓ already exists → skip
+    <p>
+      "3" → should be "5" → UPDATE to "5"
+    </p>
+  </div>
+```
+
+> **Analogy:** Virtual DOM is like rewriting your entire essay on a fresh sheet, comparing it with the old sheet, and then erasing only the changed lines on the original. Incremental DOM is like reading through the original essay line by line and fixing mistakes as you go — no extra sheet needed.
+
+### A simplified code example
+
+```js
+// Virtual DOM style — returns a whole new tree
+function render() {
+  return { tag: "div", children: [{ tag: "p", text: count }] };
+}
+
+// Incremental DOM style — walks and patches in place
+function render() {
+  elementOpen("div");
+    elementOpen("p");
+      text(count);       // checks current value, updates only if different
+    elementClose("p");
+  elementClose("div");
+}
+```
+
+### Why does Angular use this?
+
+Angular's Ivy compiler turns your templates into these step-by-step instructions. Because there's no second tree in memory:
+
+- **Less memory** is used — great for large apps with hundreds of components.
+- **Tree-shaking** works better — unused template features aren't bundled.
+
+### Trade-offs
+
+- Uses **less memory** than the Virtual DOM (no duplicate tree).
+- Can be **slightly slower** when many nodes change at once, because it touches the real DOM during comparison.
+- Mostly used inside **Angular** — you won't see it in React or Vue.
+
+---
+
+## Quick Comparison
+
+| Feature | Real DOM | Virtual DOM | Shadow DOM | Incremental DOM |
+|---|---|---|---|---|
+| **What it is** | Browser's native tree | In-memory JS copy of the tree | Encapsulated, scoped sub-tree | In-place patching of the real tree |
+| **Purpose** | Render and interact with the page | Minimize expensive DOM updates | Style and DOM encapsulation | Low-memory DOM updates |
+| **Used by** | Every browser | React, Vue | Web Components | Angular (Ivy) |
+| **Memory overhead** | Baseline | Higher (two trees) | Minimal | Lower than VDOM |
+| **Encapsulation** | None | None | Full style + DOM isolation | None |
+| **SSR support** | Full | Full | Limited | Full |
+
+---
+
+## When to use what
+
+- **Real DOM** — Simple pages, static sites, or when you manipulate a handful of elements with vanilla JS.
+- **Virtual DOM** — Dynamic, state-driven UIs with frequent re-renders (React, Vue apps).
+- **Shadow DOM** — Reusable components that need to be dropped into any page without style conflicts (design systems, embeddable widgets).
+- **Incremental DOM** — Large Angular applications where bundle size and memory are concerns.
+
+---
+
+## Wrapping up
+
+The "DOM" isn't a single thing anymore. Each variant addresses a different pain point:
+
+- The **Real DOM** is the foundation everything else builds on.
+- The **Virtual DOM** optimizes *update performance* by batching changes.
+- The **Shadow DOM** provides *encapsulation* for components.
+- The **Incremental DOM** trades memory for *in-place efficiency*.
+
+Understanding these distinctions helps you pick the right tool — and debug more effectively when things go wrong.
