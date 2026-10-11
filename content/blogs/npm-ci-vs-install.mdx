@@ -1,0 +1,81 @@
+---
+title: "npm ci vs npm install: What's the Difference?"
+date: "11 Oct 2026"
+readTime: "5 min read"
+category: "npm"
+description: "Learn how npm install and npm ci differ, when each command uses the lockfile, and which one belongs in local development or CI/CD."
+---
+
+If you've installed a JavaScript package, you've probably run `npm install`. You may also have seen `npm ci` in a CI/CD workflow and wondered why both commands exist.
+
+Both install project dependencies, but they are designed for different jobs: `npm install` is flexible for managing dependencies, while `npm ci` reproduces the dependency tree recorded in the lockfile.
+
+---
+
+## What `npm install` Does
+
+Run `npm install` in a project to install its dependencies. npm reads `package.json` and, when a compatible `package-lock.json` is present, uses the versions recorded there.
+
+```bash
+npm install
+```
+
+You can also use it to add a package:
+
+```bash
+npm install lodash
+```
+
+That updates `package.json` and `package-lock.json` by default. When the lockfile is missing or no longer agrees with the dependency requirements, npm resolves the dependencies and may update the lockfile.
+
+Use `npm install` when you're setting up a project locally or adding and managing packages.
+
+## What `npm ci` Does
+
+`npm ci` installs a project from its lockfile in a clean, repeatable way:
+
+```bash
+npm ci
+```
+
+- Requires a `package-lock.json` or `npm-shrinkwrap.json`.
+- Requires the lockfile to agree with `package.json`.
+- Removes the existing `node_modules` directory before installing.
+- Does not change `package.json` or the lockfile.
+- Installs the full project; it cannot be used to add one package.
+
+If the manifest and lockfile are out of sync, `npm ci` stops with an error. Update the dependencies and lockfile locally, then commit both files before running CI again.
+
+## The Lockfile Difference
+
+Suppose `package.json` contains this range:
+
+```json
+{
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}
+```
+
+And `package-lock.json` records `lodash` at `4.17.21`. The caret allows compatible versions below `5.0.0`, but if the lockfile is valid, a regular `npm install` uses the locked version too. It does not automatically move to `4.17.22` just because that version becomes available.
+
+To update to a newer compatible version, run:
+
+```bash
+npm update lodash
+```
+
+Review and commit the resulting lockfile change. After that, `npm ci` installs the version recorded in the updated lockfile.
+
+## Which One Should You Use?
+
+| Situation | Command | Why |
+|---|---|---|
+| Installing dependencies on your machine | `npm install` | Convenient for local dependency work |
+| Adding a dependency | `npm install <package>` | Updates the manifest and lockfile |
+| Installing in CI/CD or a clean build | `npm ci` | Uses the committed lockfile and fails on a mismatch |
+
+For Docker builds and automated tests, `npm ci` is usually the better choice because it starts from a clean install and makes an unexpected lockfile mismatch visible. For day-to-day development, use `npm install` when you need to add or manage dependencies.
+
+**In short:** `npm install` manages dependencies; `npm ci` reproduces the dependency tree in the lockfile.

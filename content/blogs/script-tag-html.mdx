@@ -1,0 +1,66 @@
+---
+title: "The HTML Script Tag: async vs defer"
+date: "09 Sep 2026"
+readTime: "5 min read"
+category: "javascript, html"
+description: "Understand how classic scripts affect HTML parsing, how async and defer change loading behavior, and when to use each option."
+---
+
+The humble `<script>` tag can make a noticeable difference to how a page loads. While developers often focus on components, API calls, and bundle size, the way JavaScript is loaded in the browser also matters.
+
+For external classic scripts, there are three common approaches: use the default behavior, add `async`, or add `defer`. Each affects when the browser downloads and executes JavaScript.
+
+---
+
+## Default: No Attribute
+
+```html
+<script src="app.js"></script>
+```
+
+When the browser reaches a classic script without `async` or `defer`, it pauses HTML parsing, downloads the script if needed, executes it, and then continues parsing. This can delay rendering, especially when the script is large or hosted on a slow server.
+
+Use this when the script must run at that exact point in the document, such as when later parsing depends on its synchronous effects. Otherwise, a non-blocking option is often preferable.
+
+## `async`: Run As Soon As Ready
+
+```html
+<script async src="analytics.js"></script>
+```
+
+The browser downloads an async script while continuing to parse HTML. When the script is ready, it executes immediately, pausing parsing if necessary. If there are multiple async scripts, their execution order is not guaranteed; each runs as soon as it has loaded.
+
+Use `async` for independent scripts that do not rely on the document finishing parsing or on another script running first. Analytics and some third-party integrations are common examples.
+
+## `defer`: Run After Parsing
+
+```html
+<script defer src="app.js"></script>
+```
+
+A deferred script downloads while the browser parses HTML. It waits until parsing is complete before executing. Multiple deferred classic scripts run in document order, and they execute before the `DOMContentLoaded` event.
+
+Use `defer` for external classic scripts that need the parsed document or depend on other deferred scripts earlier in the page.
+
+## Quick Comparison
+
+| Behavior | Default | `async` | `defer` |
+|---|---|---|---|
+| Downloads while HTML is parsed | No | Yes | Yes |
+| Can pause parsing to execute | Yes | Yes | No |
+| Execution timing | As encountered | As soon as ready | After parsing |
+| Preserves order across scripts | Yes, as encountered | No | Yes |
+
+## A Couple of Important Details
+
+- These rules describe external classic scripts. `async` and `defer` do not change the behavior of ordinary inline scripts.
+- Module scripts (`type="module"`) are deferred by default. Adding `defer` to a module script has no effect.
+- A deferred script runs after parsing, but it is not the same as waiting for every image or other page resource to finish loading.
+
+## Which Should You Choose?
+
+- Use `defer` for external classic application scripts that need the document or depend on one another.
+- Use `async` for independent scripts when execution order does not matter.
+- Leave scripts blocking only when they need to execute synchronously as the parser reaches them.
+
+Adding `async` or `defer` can improve loading behavior, but the right choice depends on what the script needs and whether it depends on another script. A small attribute can change execution timing, so choose it deliberately.
